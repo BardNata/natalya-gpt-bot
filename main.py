@@ -1,50 +1,44 @@
 
 import logging
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
-import openai
 import os
-from dotenv import load_dotenv
+import openai
+from telegram import Update
+from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 
-load_dotenv()
-
-# Настройка логирования
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
-
+# Загрузка переменных среды
 openai.api_key = os.getenv("OPENAI_API_KEY")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Готова помочь тебе с Дзеном! Пиши любой свой вопрос и я тебе подскажу ответ или помогу там, где ты в чём-то сомневаешься. Смелее! Я с тобой!"
-    )
+# Настройка логирования
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# Обработчик сообщений
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_message = update.message.text
-    logger.info(f"Сообщение от пользователя: {user_message}")
+
+    if not user_message:
+        await update.message.reply_text("Попробуй ещё раз или уточни вопрос.")
+        return
 
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+            model="gpt-3.5-turbo",  # Можно заменить на "gpt-4", если есть доступ
             messages=[{"role": "user", "content": user_message}]
         )
-        bot_reply = response.choices[0].message.content.strip()
-        logger.info(f"Ответ GPT: {bot_reply}")
-        await update.message.reply_text(bot_reply)
-
+        reply = response.choices[0].message.content.strip()
+        await update.message.reply_text(reply)
     except Exception as e:
-        logger.error(f"Ошибка при обращении к OpenAI: {e}")
-        await update.message.reply_text("Ой, что-то пошло не так. Попробуй ещё раз или уточни вопрос.")
+        logging.error(f"Ошибка при движении к OpenAI: {e}")
+        await update.message.reply_text("Что-то пошло не так. Попробуй ещё раз.")
 
-if __name__ == '__main__':
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+# Основная функция
+def main():
+    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    application.run_polling()
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    logger.info("Бот запущен.")
-    app.run_polling()
+if __name__ == "__main__":
+    main()
