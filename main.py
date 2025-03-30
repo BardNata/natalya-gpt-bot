@@ -1,45 +1,50 @@
+
 import logging
-import os
-import openai
 from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+import openai
+import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-openai.api_key = OPENAI_API_KEY
-
+# Настройка логирования
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
+logger = logging.getLogger(__name__)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+openai.api_key = os.getenv("OPENAI_API_KEY")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Готова помочь тебе с Дзеном! Пиши любой свой вопрос, и я тебе подскажу ответ или помогу там, где ты в чём-то сомневаешься. Смелее! Я с тобой!"
+        "Готова помочь тебе с Дзеном! Пиши любой свой вопрос и я тебе подскажу ответ или помогу там, где ты в чём-то сомневаешься. Смелее! Я с тобой!"
     )
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
+    logger.info(f"Сообщение от пользователя: {user_message}")
+
     try:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Ты — дружелюбный помощник по Яндекс Дзену, отвечай просто и с поддержкой."},
-                {"role": "user", "content": user_message}
-            ]
+            messages=[{"role": "user", "content": user_message}]
         )
-        bot_reply = response['choices'][0]['message']['content']
+        bot_reply = response.choices[0].message.content.strip()
+        logger.info(f"Ответ GPT: {bot_reply}")
         await update.message.reply_text(bot_reply)
+
     except Exception as e:
-        logging.error(f"Ошибка OpenAI: {e}")
+        logger.error(f"Ошибка при обращении к OpenAI: {e}")
         await update.message.reply_text("Ой, что-то пошло не так. Попробуй ещё раз или уточни вопрос.")
 
 if __name__ == '__main__':
-    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    application.run_polling()
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    logger.info("Бот запущен.")
+    app.run_polling()
