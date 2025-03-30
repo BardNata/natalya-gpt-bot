@@ -1,48 +1,54 @@
-import asyncio
+import os
 import logging
 from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
+from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 import openai
-import os
+from dotenv import load_dotenv
 
-openai.api_key = os.getenv("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")
-TELEGRAM_TOKEN = os.getenv("7392121079:AAGeWxyeFROtTE0kDm7FlkiqO6UYBwLu9UU")
+load_dotenv()
 
-SYSTEM_MESSAGE = (
-    "Ты — помощник Натальи, специалиста по новостройкам Москвы. "
-    "Общаешься с риелторами — тепло, по-человечески, без официоза. "
-    "Поддерживаешь, вдохновляешь, помогаешь. Не используй кнопки. Только текст. "
-    "Если человек новичок — подскажи, с чего начать. Если опытный — помоги усилить контент."
-)
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-async def ask_chatgpt(message):
-    client = openai.OpenAI()
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": SYSTEM_MESSAGE},
-                {"role": "user", "content": message}
-            ]
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        return f"Произошла ошибка при обращении к ChatGPT: {str(e)}"
+openai.api_key = OPENAI_API_KEY
+logging.basicConfig(level=logging.INFO)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Привет! Я бот-помощник Натальи. Готова помочь с Дзеном 😊")
+# Простой приветственный фильтр
+def define_scenario(user_text):
+    if "нет" in user_text.lower():
+        return "start_from_scratch"
+    return "has_channel"
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
-    reply = await ask_chatgpt(user_message)
-    await update.message.reply_text(reply)
+    scenario = define_scenario(user_message)
 
-async def main():
-    logging.basicConfig(level=logging.INFO)
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    await app.run_polling()
+    if scenario == "has_channel":
+        prompt = (
+            "Ты — доброжелательный помощник для риелторов, у которых уже есть канал на Дзене. "
+            "Ответь в тёплом, дружелюбном тоне и дай совет, как получать больше заявок без рекламы. "
+            f"Сообщение от пользователя: {user_message}"
+        )
+    else:
+        prompt = (
+            "Ты — доброжелательный помощник для риелторов, у которых ещё нет канала на Дзене. "
+            "Объясни спокойно и просто, с чего начать, как придумать название, написать первый пост и не бояться. "
+            f"Сообщение от пользователя: {user_message}"
+        )
 
-if __name__ == "__main__":
-    asyncio.run(main())
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": "Отвечай тепло, по-человечески, как будто ты Наталья."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+
+    reply_text = response.choices[0].message.content
+    await update.message.reply_text(reply_text)
+
+if __name__ == '__main__':
+    app = ApplicationBuilder().token(os.getenv("TELEGRAM_TOKEN")).build()
+    message_handler = MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
+    app.add_handler(message_handler)
+    app.run_polling()
