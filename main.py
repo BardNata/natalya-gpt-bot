@@ -24,7 +24,7 @@ async def get_chatgpt_response(message):
 
 # Ответ на команду /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Привет! Я — бот-помощник по Дзене. Напиши свой вопрос, и я постараюсь помочь 💬")
+    await update.message.reply_text("Готова помочь тебе с Дзеном! Пиши любой свой вопрос, и я тебе подскажу ответ или помогу там, где ты в чём-то сомневаешься. Смелее! Я с тобой!")
 
 # Обработка обычных сообщений
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
